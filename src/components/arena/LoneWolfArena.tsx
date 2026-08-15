@@ -1114,6 +1114,42 @@ export default function LoneWolfArena() {
         renderer.clippingPlanes = showRoofRef.current ? [] : [clipPlane];
         clipRef.current = { renderer, plane: clipPlane };
 
+        // ---- real minimap: one orthographic top-down render with the roof clipped ----
+        try {
+          const RT = 512;
+          const EXT = 80; // must match ARENA_EXTENT in Minimap
+          const topCam = new THREE.OrthographicCamera(-EXT, EXT, EXT, -EXT, 0.1, 600);
+          topCam.up.set(0, 0, -1);
+          topCam.position.set(0, 300, 0);
+          topCam.lookAt(0, 0, 0);
+          const rt = new THREE.WebGLRenderTarget(RT, RT);
+          const prevPlanes = renderer.clippingPlanes;
+          renderer.clippingPlanes = [clipPlane];
+          renderer.setRenderTarget(rt);
+          renderer.render(scene, topCam);
+          renderer.setRenderTarget(null);
+          renderer.clippingPlanes = prevPlanes;
+
+          const buf = new Uint8Array(RT * RT * 4);
+          renderer.readRenderTargetPixels(rt, 0, 0, RT, RT, buf);
+          const cv = document.createElement("canvas");
+          cv.width = cv.height = RT;
+          const cx = cv.getContext("2d");
+          if (cx) {
+            const img = cx.createImageData(RT, RT);
+            for (let y = 0; y < RT; y++) {
+              const srcRow = (RT - 1 - y) * RT * 4; // GL reads bottom-up
+              const dstRow = y * RT * 4;
+              img.data.set(buf.subarray(srcRow, srcRow + RT * 4), dstRow);
+            }
+            cx.putImageData(img, 0, 0);
+            mapImageRef.current = cv.toDataURL("image/png");
+          }
+          rt.dispose();
+        } catch {
+          // fall back to the occupancy grid minimap
+        }
+
         syncHud();
         setStatus("");
       },
@@ -1750,21 +1786,14 @@ export default function LoneWolfArena() {
               </button>
             </div>
           )}
-          <Minimap radarRef={radarRef} mapRef={mapGridRef} />
+          <Minimap radarRef={radarRef} mapRef={mapGridRef} imageRef={mapImageRef} />
 
           <div
             ref={crosshairRef}
-            className="pointer-events-none absolute left-1/2 top-1/2"
-            style={{ transform: "translate(-50%, -50%) scale(1)" }}
-          >
-            <div className="relative h-6 w-6">
-              <span className="absolute left-1/2 top-0 h-2 w-0.5 -translate-x-1/2 bg-foreground/90" />
-              <span className="absolute bottom-0 left-1/2 h-2 w-0.5 -translate-x-1/2 bg-foreground/90" />
-              <span className="absolute left-0 top-1/2 h-0.5 w-2 -translate-y-1/2 bg-foreground/90" />
-              <span className="absolute right-0 top-1/2 h-0.5 w-2 -translate-y-1/2 bg-foreground/90" />
-              <span className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground" />
-            </div>
-          </div>
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-foreground/80 shadow-[0_0_6px_rgba(0,0,0,0.7)]"
+            style={{ width: 18, height: 18 }}
+          />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground" />
           {hitMarker > 0 && (
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
               <div className="relative h-8 w-8">

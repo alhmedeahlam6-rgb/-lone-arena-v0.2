@@ -5,7 +5,7 @@ import { Skull, Volume2, VolumeX, Maximize, Minimize } from "lucide-react";
 import { createSpawnFx, type SpawnFx } from "./spawnFx";
 import { createImpactFx, type ImpactFx } from "./impactFx";
 import { saveMatchResult, getLeaderboard } from "@/lib/arena.functions";
-import { initSfx, playSfx, playSfxAt, warmSfx, suspendSfx, resumeSfx } from "./sfx";
+import { initSfx, playSfx, playSfxAt, warmSfx, suspendSfx, resumeSfx, setSfxMuted, isSfxMuted } from "./sfx";
 import WeaponShop from "./WeaponShop";
 import WeaponSlots from "./WeaponSlots";
 import Minimap, { type MapGrid, type RadarState } from "./Minimap";

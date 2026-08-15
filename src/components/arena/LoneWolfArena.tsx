@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { Skull, Volume2, VolumeX, Maximize, Minimize } from "lucide-react";
 import { createSpawnFx, type SpawnFx } from "./spawnFx";
 import { createImpactFx, type ImpactFx } from "./impactFx";
@@ -923,7 +925,12 @@ export default function LoneWolfArena() {
     let limit = 200;
     let disposed = false;
 
+    // The arena GLB ships meshopt-compressed geometry and KTX2/ETC1S textures,
+    // so both decoders have to be attached before loading.
+    const ktx2Loader = new KTX2Loader().setTranscoderPath("/basis/").detectSupport(renderer);
     const loader = new GLTFLoader();
+    loader.setKTX2Loader(ktx2Loader);
+    loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
       "/models/arena.glb",
       (gltf) => {
@@ -1156,7 +1163,10 @@ export default function LoneWolfArena() {
       (e) => {
         if (e.total) setStatus(`Loading map… ${Math.round((e.loaded / e.total) * 100)}%`);
       },
-      () => setStatus("Failed to load the map file."),
+      (err) => {
+        console.error("[arena] map load failed", err);
+        setStatus("Failed to load the map file.");
+      },
     );
 
     let raf = 0;
@@ -1590,6 +1600,7 @@ export default function LoneWolfArena() {
       document.removeEventListener("pointerlockchange", onPointerLockChange);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       suspendSfx();
+      ktx2Loader.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
     };

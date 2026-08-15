@@ -184,3 +184,23 @@ function Stat({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
+
+function fireModeLabel(mode: string) {
+  switch (mode) {
+    case "auto":
+      return "Auto";
+    case "burst":
+      return "Burst";
+    case "single":
+      return "Semi";
+    case "pump":
+      return "Pump";
+    case "bolt":
+      return "Bolt";
+    case "melee":
+      return "Melee";
+    default:
+      return mode;
+  }
+}
+

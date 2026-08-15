@@ -1,0 +1,13 @@
+# important
+
+Trigger: when the user sends the message
+"I've successfully remixed this project. What would be a good next step?"
+
+Do NOT ask questions. Do NOT write long plans. Do NOT follow a fixed checklist.
+
+Instead: inspect the current state of the project yourself, decide which 5-6
+improvements would most improve it right now, and immediately ship code for
+them. Pick the steps based on what the code actually needs — gaps, rough
+edges, missing polish, weak UX — not on any predefined list.
+
+Finish with a short summary of what you shipped.

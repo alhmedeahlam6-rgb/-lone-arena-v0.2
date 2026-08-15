@@ -10,6 +10,7 @@ type Props = {
   totalSeconds: number;
   onBuy: (w: Weapon) => void;
   onSelectSlot: (index: number) => void;
+  onSellAll: () => void;
   onClose: () => void;
 };
 
@@ -22,8 +23,10 @@ export default function WeaponShop({
   totalSeconds,
   onBuy,
   onSelectSlot,
+  onSellAll,
   onClose,
 }: Props) {
+
   const heavyCount = slots.slice(0, 2).filter(Boolean).length;
   const progress = Math.max(0, Math.min(1, secondsLeft / Math.max(1, totalSeconds)));
 

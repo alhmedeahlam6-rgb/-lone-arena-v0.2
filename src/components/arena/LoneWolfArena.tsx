@@ -254,6 +254,8 @@ export default function LoneWolfArena() {
   const damageFlashRef = useRef(0);
   const radarRef = useRef<RadarState>({ fighters: [], player: null });
   const mapGridRef = useRef<MapGrid | null>(null);
+  const mapImageRef = useRef<string | null>(null);
+  const adsRef = useRef(false);
 
 
 
@@ -297,7 +299,8 @@ export default function LoneWolfArena() {
     scene.background = new THREE.Color(0x0d1117);
     scene.fog = new THREE.Fog(0x0d1117, 160, 520);
 
-    const camera = new THREE.PerspectiveCamera(70, mount.clientWidth / mount.clientHeight, 0.1, 2000);
+    const BASE_FOV = 70;
+    const camera = new THREE.PerspectiveCamera(BASE_FOV, mount.clientWidth / mount.clientHeight, 0.1, 2000);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -351,7 +354,7 @@ export default function LoneWolfArena() {
     root.add(laserLine);
 
     const sparkMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.12, 8, 8),
+      new THREE.SphereGeometry(0.04, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0 }),
     );
     sparkMesh.visible = false;
@@ -364,7 +367,7 @@ export default function LoneWolfArena() {
     laserRef.current = { line: laserLine, material: laserMat, spark: sparkLight, sparkMesh, ttl: 0 };
 
     // ---- Muzzle flash ----
-    const muzzleGeo = new THREE.SphereGeometry(0.18, 12, 12);
+    const muzzleGeo = new THREE.SphereGeometry(0.07, 12, 12);
     const muzzleMat = new THREE.MeshBasicMaterial({ color: 0xffe8a0, transparent: true, opacity: 0 });
     const muzzleMesh = new THREE.Mesh(muzzleGeo, muzzleMat);
     muzzleMesh.visible = false;
@@ -718,14 +721,29 @@ export default function LoneWolfArena() {
       recoilYawRef.current += (Math.random() - 0.5) * 0.035 * recoilScale;
       shakeRef.current = 0.12;
 
-      const origin = camera.position.clone();
-      let dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
+      // The ray is built from the player's own state, never from the camera:
+      // the camera carries screen shake and is repositioned later in the frame.
+      const aimYaw = yaw + recoilYawRef.current;
+      const aimPitch = pitch + recoilRef.current;
+      const origin = new THREE.Vector3(walkPos.x, walkPos.y + EYE_HEIGHT, walkPos.z);
+      const dir = new THREE.Vector3(
+        Math.sin(aimYaw) * Math.cos(aimPitch),
+        Math.sin(aimPitch),
+        Math.cos(aimYaw) * Math.cos(aimPitch),
+      ).multiplyScalar(-1).normalize();
       applySpread(dir, behavior.spread + recoilRef.current * 0.15);
+
+      // tracers leave the gun, which sits down-right of the eye
+      const rightVec = new THREE.Vector3(Math.cos(aimYaw), 0, -Math.sin(aimYaw));
+      const muzzlePos = origin
+        .clone()
+        .add(rightVec.clone().multiplyScalar(0.3))
+        .add(new THREE.Vector3(0, -0.25, 0))
+        .add(dir.clone().multiplyScalar(0.6));
 
       const muzzle = muzzleRef.current;
       if (muzzle) {
-        muzzle.mesh.position.copy(origin).add(dir.clone().multiplyScalar(0.55));
+        muzzle.mesh.position.copy(muzzlePos);
         muzzle.light.position.copy(muzzle.mesh.position);
         muzzle.mesh.visible = true;
         muzzle.light.intensity = 18;
@@ -754,9 +772,9 @@ export default function LoneWolfArena() {
         const posAttr = laser.line.geometry.attributes["position"];
         if (!posAttr) continue;
         const positions = posAttr.array as Float32Array;
-        positions[0] = origin.x;
-        positions[1] = origin.y;
-        positions[2] = origin.z;
+        positions[0] = muzzlePos.x;
+        positions[1] = muzzlePos.y;
+        positions[2] = muzzlePos.z;
 
         let end: THREE.Vector3;
         let hitBot = false;
@@ -803,7 +821,15 @@ export default function LoneWolfArena() {
 
 
 
+    const onContextMenu = (e: MouseEvent) => e.preventDefault();
+
     const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 2) {
+        if (modeRef.current === "walk" && document.pointerLockElement === renderer.domElement) {
+          adsRef.current = true;
+        }
+        return;
+      }
       if (e.button !== 0) return;
       if (!sfxInitializedRef.current) {
         initSfx();
@@ -827,6 +853,10 @@ export default function LoneWolfArena() {
     };
 
     const onMouseUp = (e: MouseEvent) => {
+      if (e.button === 2) {
+        adsRef.current = false;
+        return;
+      }
       if (e.button !== 0) return;
       mouseHeldRef.current = false;
       // cancelling a burst mid-burst is intentional
@@ -859,6 +889,7 @@ export default function LoneWolfArena() {
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("mousedown", onMouseDown);
+    renderer.domElement.addEventListener("contextmenu", onContextMenu);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointermove", onPointerMove);
@@ -1083,6 +1114,42 @@ export default function LoneWolfArena() {
         renderer.clippingPlanes = showRoofRef.current ? [] : [clipPlane];
         clipRef.current = { renderer, plane: clipPlane };
 
+        // ---- real minimap: one orthographic top-down render with the roof clipped ----
+        try {
+          const RT = 512;
+          const EXT = 80; // must match ARENA_EXTENT in Minimap
+          const topCam = new THREE.OrthographicCamera(-EXT, EXT, EXT, -EXT, 0.1, 600);
+          topCam.up.set(0, 0, -1);
+          topCam.position.set(0, 300, 0);
+          topCam.lookAt(0, 0, 0);
+          const rt = new THREE.WebGLRenderTarget(RT, RT);
+          const prevPlanes = renderer.clippingPlanes;
+          renderer.clippingPlanes = [clipPlane];
+          renderer.setRenderTarget(rt);
+          renderer.render(scene, topCam);
+          renderer.setRenderTarget(null);
+          renderer.clippingPlanes = prevPlanes;
+
+          const buf = new Uint8Array(RT * RT * 4);
+          renderer.readRenderTargetPixels(rt, 0, 0, RT, RT, buf);
+          const cv = document.createElement("canvas");
+          cv.width = cv.height = RT;
+          const cx = cv.getContext("2d");
+          if (cx) {
+            const img = cx.createImageData(RT, RT);
+            for (let y = 0; y < RT; y++) {
+              const srcRow = (RT - 1 - y) * RT * 4; // GL reads bottom-up
+              const dstRow = y * RT * 4;
+              img.data.set(buf.subarray(srcRow, srcRow + RT * 4), dstRow);
+            }
+            cx.putImageData(img, 0, 0);
+            mapImageRef.current = cv.toDataURL("image/png");
+          }
+          rt.dispose();
+        } catch {
+          // fall back to the occupancy grid minimap
+        }
+
         syncHud();
         setStatus("");
       },
@@ -1186,6 +1253,8 @@ export default function LoneWolfArena() {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
 
+      let pendingFire = false;
+
       for (const fx of fxList) fx.update(dt);
       for (const fx of impactPool) fx.update(dt);
 
@@ -1217,7 +1286,6 @@ export default function LoneWolfArena() {
 
       // automatic fire & burst handling
       if (human && human.alive && matchRef.current.phase === "round" && modeRef.current === "walk") {
-        const behavior = getWeaponBehavior(weaponRef.current);
         // reload progress
         if (isReloadingRef.current && reloadTimerRef.current > 0) {
           reloadTimerRef.current = Math.max(0, reloadTimerRef.current - dt);
@@ -1229,24 +1297,8 @@ export default function LoneWolfArena() {
             finishReload(weaponRef.current);
           }
         }
-        // burst
-        if (burstQueueRef.current) {
-          burstQueueRef.current.nextIn -= dt;
-          if (burstQueueRef.current.nextIn <= 0) {
-            const q = burstQueueRef.current;
-            shoot(true);
-            q.shotsLeft -= 1;
-            if (q.shotsLeft <= 0) {
-              burstQueueRef.current = null;
-            } else {
-              q.nextIn = behavior.interval;
-            }
-          }
-        }
-        // auto
-        if (mouseHeldRef.current && behavior.mode === "auto" && weaponCooldownRef.current <= 0 && !isReloadingRef.current) {
-          shoot(true);
-        }
+        // firing itself happens after the camera update, further down the frame
+        pendingFire = true;
       }
 
       if (humanBody) humanBody.group.visible = introTime > 0 && modeRef.current === "walk";
@@ -1388,6 +1440,35 @@ export default function LoneWolfArena() {
             Math.cos(effectiveYaw) * Math.cos(effectivePitch),
           );
           camera.lookAt(camera.position.clone().add(dir.multiplyScalar(-1)));
+
+          // ADS: lerp the FOV toward the equipped weapon's magnification
+          const zoom = adsRef.current ? getWeaponBehavior(weaponRef.current).zoom : 1;
+          const targetFov = BASE_FOV / Math.max(1, zoom);
+          if (Math.abs(camera.fov - targetFov) > 0.05) {
+            camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 10);
+            camera.updateProjectionMatrix();
+          }
+        }
+      }
+
+      // automatic / burst fire, run only once the camera is in its final pose
+      if (pendingFire) {
+        const behavior = getWeaponBehavior(weaponRef.current);
+        if (burstQueueRef.current) {
+          burstQueueRef.current.nextIn -= dt;
+          if (burstQueueRef.current.nextIn <= 0) {
+            const q = burstQueueRef.current;
+            shoot(true);
+            q.shotsLeft -= 1;
+            if (q.shotsLeft <= 0) {
+              burstQueueRef.current = null;
+            } else {
+              q.nextIn = behavior.interval;
+            }
+          }
+        }
+        if (mouseHeldRef.current && behavior.mode === "auto" && weaponCooldownRef.current <= 0 && !isReloadingRef.current) {
+          shoot(true);
         }
       }
 
@@ -1477,8 +1558,10 @@ export default function LoneWolfArena() {
 
       const ch = crosshairRef.current;
       if (ch) {
-        const spread = 1 + Math.min(2.2, recoilRef.current * 6);
-        ch.style.transform = `translate(-50%, -50%) scale(${spread})`;
+        const b = getWeaponBehavior(weaponRef.current);
+        const size = 14 + b.spread * 900 + Math.min(0.32, recoilRef.current) * 190;
+        ch.style.width = `${size}px`;
+        ch.style.height = `${size}px`;
       }
 
       renderer.render(scene, camera);
@@ -1495,6 +1578,7 @@ export default function LoneWolfArena() {
       cancelAnimationFrame(raf);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("mousedown", onMouseDown);
+      renderer.domElement.removeEventListener("contextmenu", onContextMenu);
       window.removeEventListener("mouseup", onMouseUp);
       renderer.domElement.removeEventListener("wheel", onWheel);
       window.removeEventListener("pointerup", onPointerUp);
@@ -1700,21 +1784,33 @@ export default function LoneWolfArena() {
               </button>
             </div>
           )}
-          <Minimap radarRef={radarRef} mapRef={mapGridRef} />
+          <Minimap radarRef={radarRef} mapRef={mapGridRef} imageRef={mapImageRef} />
+
+          {/* Free Fire style health bar */}
+          <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 w-64 -translate-x-1/2 sm:w-80">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">HP</span>
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-black/60 ring-1 ring-white/25">
+                <div
+                  className="h-full rounded-full bg-white transition-all duration-150"
+                  style={{ width: `${Math.max(0, Math.min(100, (playerHp / MAX_HP) * 100))}%` }}
+                />
+              </div>
+              <span className="w-16 text-right text-xs font-bold tabular-nums text-white">
+                {playerHp}/{MAX_HP}
+              </span>
+            </div>
+            <p className="mt-1 text-center text-[10px] uppercase tracking-widest text-white/50">
+              {playerStatsHud.kills} K / {playerStatsHud.deaths} D
+            </p>
+          </div>
 
           <div
             ref={crosshairRef}
-            className="pointer-events-none absolute left-1/2 top-1/2"
-            style={{ transform: "translate(-50%, -50%) scale(1)" }}
-          >
-            <div className="relative h-6 w-6">
-              <span className="absolute left-1/2 top-0 h-2 w-0.5 -translate-x-1/2 bg-foreground/90" />
-              <span className="absolute bottom-0 left-1/2 h-2 w-0.5 -translate-x-1/2 bg-foreground/90" />
-              <span className="absolute left-0 top-1/2 h-0.5 w-2 -translate-y-1/2 bg-foreground/90" />
-              <span className="absolute right-0 top-1/2 h-0.5 w-2 -translate-y-1/2 bg-foreground/90" />
-              <span className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground" />
-            </div>
-          </div>
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-foreground/80 shadow-[0_0_6px_rgba(0,0,0,0.7)]"
+            style={{ width: 18, height: 18 }}
+          />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground" />
           {hitMarker > 0 && (
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
               <div className="relative h-8 w-8">
@@ -1830,11 +1926,23 @@ export default function LoneWolfArena() {
               <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">
                 {match.phase === "intermission" ? "Round over" : "Match over"}
               </p>
-              <p className="text-4xl font-bold text-foreground">
-                {match.matchWinner
-                  ? `${match.matchWinner === "blue" ? "Blue" : "Red"} team wins`
-                  : `${match.roundWinner === "blue" ? "Blue" : "Red"} team wins the round`}
-              </p>
+              {(() => {
+                const winner = match.matchWinner ?? match.roundWinner;
+                const won = winner === "blue";
+                return won ? (
+                  <div className="rounded-md border-2 border-[#ffd76a] bg-gradient-to-b from-[#ffe9a8] to-[#e2a712] px-10 py-3 shadow-[0_0_40px_-8px_rgba(255,200,80,0.9)]">
+                    <p className="text-4xl font-black uppercase tracking-[0.25em] text-[#4a2c00] sm:text-5xl">
+                      Booyah
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border-2 border-white/25 bg-gradient-to-b from-[#5b6068] to-[#2b2f35] px-10 py-3 shadow-[0_0_40px_-12px_rgba(0,0,0,0.9)]">
+                    <p className="text-4xl font-black uppercase tracking-[0.25em] text-white/80 sm:text-5xl">
+                      Defeat
+                    </p>
+                  </div>
+                );
+              })()}
               <p className="text-2xl font-semibold tabular-nums text-foreground">
                 {match.blue} – {match.red}
               </p>
@@ -1901,78 +2009,26 @@ export default function LoneWolfArena() {
 
       {/* scoreboard */}
       {hud.length > 0 && (
-        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-lg border border-border/60 bg-card/70 px-4 py-2 text-center backdrop-blur sm:top-6">
-          <div className="flex items-center gap-3 text-lg font-bold tabular-nums">
-            <span style={{ color: "#3f8fff" }}>{score.blue}</span>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Round {match.round}</span>
-              <div className="mt-1 flex w-32 overflow-hidden rounded-full bg-muted sm:w-40">
-                <div
-                  className="h-1.5 transition-all"
-                  style={{ width: `${Math.max(0, Math.min(100, (hud.filter((f) => f.team === "blue").reduce((s, f) => s + f.hp, 0) / (MAX_HP * 2)) * 100))}%`, backgroundColor: "#3f8fff" }}
-                />
-                <div
-                  className="h-1.5 transition-all"
-                  style={{ width: `${Math.max(0, Math.min(100, (hud.filter((f) => f.team === "red").reduce((s, f) => s + f.hp, 0) / (MAX_HP * 2)) * 100))}%`, backgroundColor: "#ff3b1f" }}
-                />
-              </div>
+        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 sm:top-6">
+          <div className="flex items-stretch overflow-hidden rounded-lg shadow-[0_0_18px_-6px_rgba(0,0,0,0.9)]">
+            <div className="flex min-w-14 items-center justify-center bg-[#1b62d6] px-4 py-1.5 text-xl font-extrabold tabular-nums text-white">
+              {score.blue}
             </div>
-            <span style={{ color: "#ff3b1f" }}>{score.red}</span>
-          </div>
-          <div className="mt-1 flex gap-3 text-[10px] uppercase tracking-widest text-muted-foreground">
-            {hud.map((f) => (
-              <span key={f.id} className={f.alive ? "" : "opacity-40 line-through"}>
-                {f.isHuman ? "YOU" : f.id} {f.hp}
+            <div className="flex flex-col items-center justify-center bg-black/70 px-4 py-1 text-center backdrop-blur">
+              <span className="text-[9px] uppercase tracking-[0.3em] text-white/70">Round {match.round}</span>
+              <span className="text-[9px] uppercase tracking-widest text-white/50">
+                {hud.filter((f) => f.team === "blue" && f.alive).length} v {hud.filter((f) => f.team === "red" && f.alive).length}
               </span>
-            ))}
+            </div>
+            <div className="flex min-w-14 items-center justify-center bg-[#d62828] px-4 py-1.5 text-xl font-extrabold tabular-nums text-white">
+              {score.red}
+            </div>
           </div>
         </div>
       )}
 
-
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 p-4 sm:p-6">
-        <div className="rounded-lg border border-border/60 bg-[var(--hud-panel-dim)] px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground backdrop-blur">
-          {mode === "walk" ? (
-            <>WASD · space jump · click shoot · R reload · shift sprint · 1/2/3 weapons · esc exit</>
-          ) : (
-            <>Drag to rotate · scroll to zoom</>
-          )}
-
-          {mode === "walk" && (
-            <div className="mt-2 w-56 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-5 text-[9px] text-[var(--hud-accent)]">K/D</span>
-                <div className="h-1.5 flex-1 skew-x-[-20deg] overflow-hidden bg-muted">
-                  <div
-                    className="h-full transition-all"
-                    style={{
-                      width: `${Math.min(100, (playerStatsHud.kills / KILLS_TO_WIN_ROUND) * 100)}%`,
-                      background: "var(--gradient-hud)",
-                    }}
-                  />
-                </div>
-                <span className="w-14 text-right text-[9px] tabular-nums normal-case tracking-normal text-foreground">
-                  {playerStatsHud.kills} / {playerStatsHud.deaths}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 text-[9px] text-[var(--hud-hp)]">HP</span>
-                <div className="h-2.5 flex-1 skew-x-[-20deg] overflow-hidden bg-muted">
-                  <div
-                    className="h-full transition-all"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, (playerHp / MAX_HP) * 100))}%`,
-                      background: "var(--gradient-hud)",
-                    }}
-                  />
-                </div>
-                <span className="w-14 text-right text-[9px] tabular-nums normal-case tracking-normal text-foreground">
-                  {playerHp}/{MAX_HP}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
+        <div />
 
         <div className="pointer-events-auto flex flex-col items-end gap-2">
           <div className="flex gap-2">

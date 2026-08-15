@@ -24,9 +24,11 @@ const ARENA_EXTENT = 80;
 type Props = {
   radarRef: { current: RadarState };
   mapRef: { current: MapGrid | null };
+  /** data-url of the arena rendered top-down at load; preferred over the grid */
+  imageRef?: { current: string | null };
 };
 
-export default function Minimap({ radarRef, mapRef }: Props) {
+export default function Minimap({ radarRef, mapRef, imageRef }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -75,6 +77,10 @@ export default function Minimap({ radarRef, mapRef }: Props) {
       return out;
     };
 
+    // real top-down render of the arena, produced once at load
+    let shot: HTMLImageElement | null = null;
+    let shotSrc: string | null = null;
+
     let raf = 0;
     const draw = () => {
       raf = requestAnimationFrame(draw);
@@ -99,13 +105,28 @@ export default function Minimap({ radarRef, mapRef }: Props) {
         ctx.stroke();
       }
 
-      // static map geometry
-      const grid = mapRef.current;
-      if (grid && !geoBuilt) {
-        geoBuilt = true;
-        geoLayer = buildGeoLayer(grid);
+      // static map: the rendered arena image if available, else the occupancy grid
+      const src = imageRef?.current ?? null;
+      if (src && src !== shotSrc) {
+        shotSrc = src;
+        const img = new Image();
+        img.onload = () => {
+          shot = img;
+        };
+        img.src = src;
       }
-      if (geoLayer) ctx.drawImage(geoLayer, 0, 0);
+      if (shot) {
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(shot, 0, 0, SIZE, SIZE);
+        ctx.globalAlpha = 1;
+      } else {
+        const grid = mapRef.current;
+        if (grid && !geoBuilt) {
+          geoBuilt = true;
+          geoLayer = buildGeoLayer(grid);
+        }
+        if (geoLayer) ctx.drawImage(geoLayer, 0, 0);
+      }
 
       // border
       ctx.strokeStyle = "rgba(255, 224, 138, 0.5)";
@@ -149,7 +170,7 @@ export default function Minimap({ radarRef, mapRef }: Props) {
 
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [radarRef, mapRef]);
+  }, [radarRef, mapRef, imageRef]);
 
   return (
     <div className="pointer-events-none absolute right-4 top-4 z-10 sm:right-6 sm:top-6">

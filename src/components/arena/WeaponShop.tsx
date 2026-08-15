@@ -132,7 +132,11 @@ export default function WeaponShop({
                 <span className="absolute left-2 top-2 text-[9px] uppercase tracking-widest text-muted-foreground">
                   {heavy ? "Heavy" : "Sidearm"}
                 </span>
+                <span className="absolute right-2 top-2 rounded bg-[var(--hud-panel-dim)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--hud-accent)]">
+                  {fireModeLabel(getWeaponBehavior(w.id).mode)}
+                </span>
                 <img
+
                   src={w.image}
                   alt={`${w.name} ${w.cls}`}
                   loading="lazy"

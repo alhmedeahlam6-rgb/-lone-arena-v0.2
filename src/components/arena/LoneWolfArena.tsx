@@ -866,6 +866,21 @@ export default function LoneWolfArena() {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
+    const onPointerLockChange = () => {
+      const locked = document.pointerLockElement === renderer.domElement;
+      if (modeRef.current === "walk" && !locked && matchRef.current.phase === "round") {
+        setPaused(true);
+        suspendSfx();
+      }
+    };
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+
+    const onFullscreenChange = () => {
+      setFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+
+
 
     const onResize = () => {
       camera.aspect = mount.clientWidth / mount.clientHeight;

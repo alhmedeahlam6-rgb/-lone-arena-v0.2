@@ -195,6 +195,10 @@ export default function LoneWolfArena() {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [sfxReady, setSfxReady] = useState(false);
   const [playerStatsHud, setPlayerStatsHud] = useState({ kills: 0, deaths: 0 });
+  const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+
 
 
   const showRoofRef = useRef(true);

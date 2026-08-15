@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { Skull } from "lucide-react";
+import { Skull, Volume2, VolumeX, Maximize, Minimize } from "lucide-react";
 import { createSpawnFx, type SpawnFx } from "./spawnFx";
 import { createImpactFx, type ImpactFx } from "./impactFx";
 import { saveMatchResult, getLeaderboard } from "@/lib/arena.functions";

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { Skull } from "lucide-react";
+import { Skull, Volume2, VolumeX, Maximize, Minimize } from "lucide-react";
 import { createSpawnFx, type SpawnFx } from "./spawnFx";
 import { createImpactFx, type ImpactFx } from "./impactFx";
 import { saveMatchResult, getLeaderboard } from "@/lib/arena.functions";
-import { initSfx, playSfx, playSfxAt, warmSfx, suspendSfx, resumeSfx } from "./sfx";
+import { initSfx, playSfx, playSfxAt, warmSfx, suspendSfx, resumeSfx, setSfxMuted, isSfxMuted } from "./sfx";
 import WeaponShop from "./WeaponShop";
 import WeaponSlots from "./WeaponSlots";
 import Minimap, { type MapGrid, type RadarState } from "./Minimap";
@@ -195,6 +195,10 @@ export default function LoneWolfArena() {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [sfxReady, setSfxReady] = useState(false);
   const [playerStatsHud, setPlayerStatsHud] = useState({ kills: 0, deaths: 0 });
+  const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+
 
 
   const showRoofRef = useRef(true);
@@ -783,8 +787,9 @@ export default function LoneWolfArena() {
         laser.ttl = 0.12;
 
         spawnImpact(end, hitBot ? new THREE.Color(human.team === "blue" ? 0x3f8fff : 0xff3b1f) : undefined);
-        if (hitBot) pushKillFeed(human, fighterByMesh(botHits[0]!.object)!, weaponName);
+        // Kill feed is already pushed by damage()/kill(); don't duplicate it here.
       }
+
 
       // decrement ammo
       if (currentAmmo) {
@@ -860,6 +865,21 @@ export default function LoneWolfArena() {
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+
+    const onPointerLockChange = () => {
+      const locked = document.pointerLockElement === renderer.domElement;
+      if (modeRef.current === "walk" && !locked && matchRef.current.phase === "round") {
+        setPaused(true);
+        suspendSfx();
+      }
+    };
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+
+    const onFullscreenChange = () => {
+      setFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+
 
 
     const onResize = () => {
@@ -1483,10 +1503,13 @@ export default function LoneWolfArena() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("pointerlockchange", onPointerLockChange);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
       suspendSfx();
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
     };
+
 
 
   }, []);
@@ -1565,8 +1588,18 @@ export default function LoneWolfArena() {
     equipWeapon(w);
   };
 
+  const sellAllWeapons = () => {
+    const heavyIds = slots.slice(0, 2).filter(Boolean) as string[];
+    if (heavyIds.length === 0) return;
+    const refund = heavyIds.reduce((sum, id) => sum + (getWeapon(id)?.price ?? 0) * 0.5, 0);
+    setCredits((c) => c + Math.floor(refund));
+    setSlots((prev) => [null, null, prev[2] ?? null]);
+    setActiveSlot(2);
+  };
+
 
   const selectSlot = (i: number) => {
+
     if (!slots[i]) return;
     setActiveSlot(i);
   };
@@ -1648,7 +1681,27 @@ export default function LoneWolfArena() {
       {mode === "walk" && (
 
         <>
+          {paused && (
+            <div className="pointer-events-auto absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/80 p-6 text-center backdrop-blur-sm">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Paused</h2>
+              <p className="max-w-md text-sm text-muted-foreground">
+                Click resume to lock the cursor and continue the match.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaused(false);
+                  resumeSfx();
+                  mountRef.current?.querySelector("canvas")?.requestPointerLock?.();
+                }}
+                className="rounded-lg bg-[var(--hud-accent)] px-6 py-2 text-xs font-bold uppercase tracking-widest text-[var(--hud-accent-foreground)] transition hover:brightness-110"
+              >
+                Resume
+              </button>
+            </div>
+          )}
           <Minimap radarRef={radarRef} mapRef={mapGridRef} />
+
           <div
             ref={crosshairRef}
             className="pointer-events-none absolute left-1/2 top-1/2"
@@ -1699,9 +1752,11 @@ export default function LoneWolfArena() {
               totalSeconds={COUNTDOWN_SECONDS}
               onBuy={buyWeapon}
               onSelectSlot={selectSlot}
+              onSellAll={sellAllWeapons}
               onClose={() => setShopOpen(false)}
             />
           )}
+
           {!shopOpen && (
             <WeaponSlots slots={slots} activeSlot={activeSlot} onSelect={selectSlot} />
           )}
@@ -1920,8 +1975,35 @@ export default function LoneWolfArena() {
         </div>
 
         <div className="pointer-events-auto flex flex-col items-end gap-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const next = !isSfxMuted();
+                setSfxMuted(next);
+                setMuted(next);
+              }}
+              className="rounded-lg border border-border bg-card/70 p-2 text-muted-foreground backdrop-blur transition-colors hover:bg-secondary"
+              aria-label={muted ? "Unmute audio" : "Mute audio"}
+            >
+              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => {
+                if (!document.fullscreenElement) {
+                  document.documentElement.requestFullscreen?.().catch(() => {});
+                } else {
+                  document.exitFullscreen?.().catch(() => {});
+                }
+              }}
+              className="rounded-lg border border-border bg-card/70 p-2 text-muted-foreground backdrop-blur transition-colors hover:bg-secondary"
+              aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </button>
+          </div>
           {showDebug && (
             <div className="flex flex-col items-stretch gap-2 rounded-lg border border-border/60 bg-card/85 p-3 backdrop-blur">
+
               <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Debug</p>
               <button
                 onClick={() => setShowRoof((v) => !v)}

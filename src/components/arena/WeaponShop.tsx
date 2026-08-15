@@ -1,4 +1,4 @@
-import { WEAPONS, isHeavy, getWeapon, MAX_HEAVY, type Weapon } from "./weapons";
+import { WEAPONS, isHeavy, getWeapon, getWeaponBehavior, MAX_HEAVY, type Weapon } from "./weapons";
 
 type Props = {
   credits: number;
@@ -10,6 +10,7 @@ type Props = {
   totalSeconds: number;
   onBuy: (w: Weapon) => void;
   onSelectSlot: (index: number) => void;
+  onSellAll: () => void;
   onClose: () => void;
 };
 
@@ -22,8 +23,10 @@ export default function WeaponShop({
   totalSeconds,
   onBuy,
   onSelectSlot,
+  onSellAll,
   onClose,
 }: Props) {
+
   const heavyCount = slots.slice(0, 2).filter(Boolean).length;
   const progress = Math.max(0, Math.min(1, secondsLeft / Math.max(1, totalSeconds)));
 
@@ -56,12 +59,20 @@ export default function WeaponShop({
               $ {credits}
             </span>
             <button
+              onClick={onSellAll}
+              disabled={heavyCount === 0}
+              className="rounded-full border border-border/60 bg-[var(--hud-panel-dim)] px-4 py-2 text-xs font-bold uppercase tracking-widest text-foreground transition hover:border-[var(--hud-accent)]/60 disabled:opacity-30 disabled:hover:border-border/60"
+            >
+              Sell all
+            </button>
+            <button
               onClick={onClose}
               className="rounded-full bg-[var(--hud-accent)] px-6 py-2 text-xs font-bold uppercase tracking-widest text-[var(--hud-accent-foreground)] transition hover:brightness-110"
             >
               Ready
             </button>
           </div>
+
         </div>
 
         {/* loadout strip */}
@@ -121,7 +132,11 @@ export default function WeaponShop({
                 <span className="absolute left-2 top-2 text-[9px] uppercase tracking-widest text-muted-foreground">
                   {heavy ? "Heavy" : "Sidearm"}
                 </span>
+                <span className="absolute right-2 top-2 rounded bg-[var(--hud-panel-dim)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--hud-accent)]">
+                  {fireModeLabel(getWeaponBehavior(w.id).mode)}
+                </span>
                 <img
+
                   src={w.image}
                   alt={`${w.name} ${w.cls}`}
                   loading="lazy"
@@ -169,3 +184,23 @@ function Stat({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
+
+function fireModeLabel(mode: string) {
+  switch (mode) {
+    case "auto":
+      return "Auto";
+    case "burst":
+      return "Burst";
+    case "single":
+      return "Semi";
+    case "pump":
+      return "Pump";
+    case "bolt":
+      return "Bolt";
+    case "melee":
+      return "Melee";
+    default:
+      return mode;
+  }
+}
+

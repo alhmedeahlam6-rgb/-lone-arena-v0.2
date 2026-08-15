@@ -1286,7 +1286,6 @@ export default function LoneWolfArena() {
 
       // automatic fire & burst handling
       if (human && human.alive && matchRef.current.phase === "round" && modeRef.current === "walk") {
-        const behavior = getWeaponBehavior(weaponRef.current);
         // reload progress
         if (isReloadingRef.current && reloadTimerRef.current > 0) {
           reloadTimerRef.current = Math.max(0, reloadTimerRef.current - dt);
@@ -1300,7 +1299,6 @@ export default function LoneWolfArena() {
         }
         // firing itself happens after the camera update, further down the frame
         pendingFire = true;
-        void behavior;
       }
 
       if (humanBody) humanBody.group.visible = introTime > 0 && modeRef.current === "walk";

@@ -78,12 +78,12 @@ export function createImpactFx(): ImpactFx {
   for (let i = 0; i < COUNT; i++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.random() * Math.PI;
-    const speed = 0.6 + Math.random() * 1.4;
+    const speed = (0.6 + Math.random() * 1.4) / 3;
     velocity[i * 3] = Math.sin(phi) * Math.cos(theta) * speed;
     velocity[i * 3 + 1] = Math.cos(phi) * speed;
     velocity[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * speed;
     seed[i] = Math.random();
-    size[i] = 3 + Math.random() * 5;
+    size[i] = (3 + Math.random() * 5) / 3;
   }
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("aVelocity", new THREE.BufferAttribute(velocity, 3));
@@ -111,7 +111,7 @@ export function createImpactFx(): ImpactFx {
   pts.visible = false;
   group.add(pts);
 
-  const flash = new THREE.PointLight(0xffa040, 0, 8, 1.5);
+  const flash = new THREE.PointLight(0xffa040, 0, 8 / 3, 1.5);
   flash.position.set(0, 0, 0);
   group.add(flash);
 
@@ -132,7 +132,7 @@ export function createImpactFx(): ImpactFx {
       const p = 1 - life / LIFETIME;
       mat.uniforms["uProgress"]!.value = p;
       mat.uniforms["uTime"]!.value = time;
-      flash.intensity = Math.max(0, (1 - p) * 5);
+      flash.intensity = Math.max(0, (1 - p) * (5 / 3));
       if (life <= 0) {
         pts.visible = false;
         flash.intensity = 0;

@@ -85,23 +85,25 @@ export type WeaponBehavior = {
   spread: number;
   /** recoil kick multiplier */
   recoil: number;
+  /** ADS magnification applied to the camera FOV while holding right mouse */
+  zoom: number;
   /** audio flavour */
   sound: "rifle" | "carbine" | "smg" | "shotgun" | "sniper" | "mg" | "pistol" | "deagle" | "knife";
 };
 
 const BEHAVIORS: Record<string, WeaponBehavior> = {
-  ak47:   { mode: "auto",   interval: 0.10, cycle: 0,    shots: 1, spread: 0.014, recoil: 1.15, sound: "rifle" },
-  m4a1:   { mode: "auto",   interval: 0.09, cycle: 0,    shots: 1, spread: 0.010, recoil: 0.85, sound: "carbine" },
-  scar:   { mode: "burst",  interval: 0.07, cycle: 0.34, shots: 3, spread: 0.011, recoil: 1.0,  sound: "rifle" },
-  mp40:   { mode: "auto",   interval: 0.07, cycle: 0,    shots: 1, spread: 0.020, recoil: 0.7,  sound: "smg" },
-  ump:    { mode: "auto",   interval: 0.075,cycle: 0,    shots: 1, spread: 0.018, recoil: 0.65, sound: "smg" },
-  m1014:  { mode: "pump",   interval: 0,    cycle: 0.72, shots: 6, spread: 0.055, recoil: 1.8,  sound: "shotgun" },
-  spas12: { mode: "pump",   interval: 0,    cycle: 0.85, shots: 7, spread: 0.065, recoil: 2.0,  sound: "shotgun" },
-  awm:    { mode: "bolt",   interval: 0,    cycle: 1.55, shots: 1, spread: 0.0,   recoil: 2.4,  sound: "sniper" },
-  kar98k: { mode: "bolt",   interval: 0,    cycle: 1.25, shots: 1, spread: 0.001, recoil: 2.1,  sound: "sniper" },
-  m249:   { mode: "auto",   interval: 0.075,cycle: 0,    shots: 1, spread: 0.024, recoil: 1.05, sound: "mg" },
-  deagle: { mode: "single", interval: 0,    cycle: 0.40, shots: 1, spread: 0.003, recoil: 1.7,  sound: "deagle" },
-  knife:  { mode: "melee",  interval: 0,    cycle: 0.45, shots: 1, spread: 0.0,   recoil: 0.3,  sound: "knife" },
+  ak47:   { mode: "auto",   interval: 0.10, cycle: 0,    shots: 1, spread: 0.014, recoil: 1.15, zoom: 1.4, sound: "rifle" },
+  m4a1:   { mode: "auto",   interval: 0.09, cycle: 0,    shots: 1, spread: 0.010, recoil: 0.85, zoom: 1.4, sound: "carbine" },
+  scar:   { mode: "burst",  interval: 0.07, cycle: 0.34, shots: 3, spread: 0.011, recoil: 1.0,  zoom: 1.4, sound: "rifle" },
+  mp40:   { mode: "auto",   interval: 0.07, cycle: 0,    shots: 1, spread: 0.020, recoil: 0.7,  zoom: 1.25, sound: "smg" },
+  ump:    { mode: "auto",   interval: 0.075,cycle: 0,    shots: 1, spread: 0.018, recoil: 0.65, zoom: 1.25, sound: "smg" },
+  m1014:  { mode: "pump",   interval: 0,    cycle: 0.72, shots: 6, spread: 0.055, recoil: 1.8,  zoom: 1.1, sound: "shotgun" },
+  spas12: { mode: "pump",   interval: 0,    cycle: 0.85, shots: 7, spread: 0.065, recoil: 2.0,  zoom: 1.1, sound: "shotgun" },
+  awm:    { mode: "bolt",   interval: 0,    cycle: 1.55, shots: 1, spread: 0.0,   recoil: 2.4,  zoom: 4, sound: "sniper" },
+  kar98k: { mode: "bolt",   interval: 0,    cycle: 1.25, shots: 1, spread: 0.001, recoil: 2.1,  zoom: 3.4, sound: "sniper" },
+  m249:   { mode: "auto",   interval: 0.075,cycle: 0,    shots: 1, spread: 0.024, recoil: 1.05, zoom: 1.2, sound: "mg" },
+  deagle: { mode: "single", interval: 0,    cycle: 0.40, shots: 1, spread: 0.003, recoil: 1.7,  zoom: 1.5, sound: "deagle" },
+  knife:  { mode: "melee",  interval: 0,    cycle: 0.45, shots: 1, spread: 0.0,   recoil: 0.3,  zoom: 1, sound: "knife" },
 };
 
 
@@ -112,6 +114,7 @@ const DEFAULT_BEHAVIOR: WeaponBehavior = {
   shots: 1,
   spread: 0.01,
   recoil: 1,
+  zoom: 1.3,
   sound: "pistol",
 };
 
@@ -157,13 +160,10 @@ export function getReserveAmmo(id: string | null) {
   return (id ? RESERVE_AMMO[id] : null) ?? 90;
 }
 
+/** Snappy arcade reload: every weapon racks a fresh mag in half a second. */
 export function getReloadTime(id: string | null) {
   const w = getWeapon(id);
-  if (!w) return 1.5;
-  if (w.cls === "Sniper") return 2.6;
-  if (w.cls === "Shotgun") return 2.2;
-  if (w.cls === "Heavy") return 3.2;
-  if (w.cls === "Pistol") return 1.2;
+  if (!w) return 0.5;
   if (w.cls === "Melee") return 0;
-  return 1.8;
+  return 0.5;
 }

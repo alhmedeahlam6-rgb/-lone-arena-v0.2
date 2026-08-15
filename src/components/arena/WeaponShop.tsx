@@ -1,4 +1,4 @@
-import { WEAPONS, isHeavy, getWeapon, MAX_HEAVY, type Weapon } from "./weapons";
+import { WEAPONS, isHeavy, getWeapon, getWeaponBehavior, MAX_HEAVY, type Weapon } from "./weapons";
 
 type Props = {
   credits: number;

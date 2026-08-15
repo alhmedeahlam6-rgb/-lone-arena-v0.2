@@ -1975,8 +1975,35 @@ export default function LoneWolfArena() {
         </div>
 
         <div className="pointer-events-auto flex flex-col items-end gap-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const next = !isSfxMuted();
+                setSfxMuted(next);
+                setMuted(next);
+              }}
+              className="rounded-lg border border-border bg-card/70 p-2 text-muted-foreground backdrop-blur transition-colors hover:bg-secondary"
+              aria-label={muted ? "Unmute audio" : "Mute audio"}
+            >
+              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => {
+                if (!document.fullscreenElement) {
+                  document.documentElement.requestFullscreen?.().catch(() => {});
+                } else {
+                  document.exitFullscreen?.().catch(() => {});
+                }
+              }}
+              className="rounded-lg border border-border bg-card/70 p-2 text-muted-foreground backdrop-blur transition-colors hover:bg-secondary"
+              aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </button>
+          </div>
           {showDebug && (
             <div className="flex flex-col items-stretch gap-2 rounded-lg border border-border/60 bg-card/85 p-3 backdrop-blur">
+
               <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Debug</p>
               <button
                 onClick={() => setShowRoof((v) => !v)}

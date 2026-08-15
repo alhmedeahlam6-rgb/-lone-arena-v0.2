@@ -116,8 +116,17 @@ export default function Minimap({ radarRef, mapRef, imageRef }: Props) {
         img.src = src;
       }
       if (shot) {
-        ctx.globalAlpha = 0.95;
+        // brighten the rendered arena so the layout reads at minimap size
         ctx.drawImage(shot, 0, 0, SIZE, SIZE);
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(shot, 0, 0, SIZE, SIZE);
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(shot, 0, 0, SIZE, SIZE);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, SIZE, SIZE);
         ctx.globalAlpha = 1;
       } else {
         const grid = mapRef.current;

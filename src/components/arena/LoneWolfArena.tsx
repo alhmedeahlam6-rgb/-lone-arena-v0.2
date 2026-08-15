@@ -1681,7 +1681,27 @@ export default function LoneWolfArena() {
       {mode === "walk" && (
 
         <>
+          {paused && (
+            <div className="pointer-events-auto absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/80 p-6 text-center backdrop-blur-sm">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Paused</h2>
+              <p className="max-w-md text-sm text-muted-foreground">
+                Click resume to lock the cursor and continue the match.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaused(false);
+                  resumeSfx();
+                  mountRef.current?.querySelector("canvas")?.requestPointerLock?.();
+                }}
+                className="rounded-lg bg-[var(--hud-accent)] px-6 py-2 text-xs font-bold uppercase tracking-widest text-[var(--hud-accent-foreground)] transition hover:brightness-110"
+              >
+                Resume
+              </button>
+            </div>
+          )}
           <Minimap radarRef={radarRef} mapRef={mapGridRef} />
+
           <div
             ref={crosshairRef}
             className="pointer-events-none absolute left-1/2 top-1/2"

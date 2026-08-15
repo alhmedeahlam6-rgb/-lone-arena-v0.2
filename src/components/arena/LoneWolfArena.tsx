@@ -1503,10 +1503,13 @@ export default function LoneWolfArena() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("pointerlockchange", onPointerLockChange);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
       suspendSfx();
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
     };
+
 
 
   }, []);

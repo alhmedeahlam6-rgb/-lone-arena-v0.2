@@ -254,6 +254,8 @@ export default function LoneWolfArena() {
   const damageFlashRef = useRef(0);
   const radarRef = useRef<RadarState>({ fighters: [], player: null });
   const mapGridRef = useRef<MapGrid | null>(null);
+  const mapImageRef = useRef<string | null>(null);
+  const adsRef = useRef(false);
 
 
 
@@ -297,7 +299,8 @@ export default function LoneWolfArena() {
     scene.background = new THREE.Color(0x0d1117);
     scene.fog = new THREE.Fog(0x0d1117, 160, 520);
 
-    const camera = new THREE.PerspectiveCamera(70, mount.clientWidth / mount.clientHeight, 0.1, 2000);
+    const BASE_FOV = 70;
+    const camera = new THREE.PerspectiveCamera(BASE_FOV, mount.clientWidth / mount.clientHeight, 0.1, 2000);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -351,7 +354,7 @@ export default function LoneWolfArena() {
     root.add(laserLine);
 
     const sparkMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.12, 8, 8),
+      new THREE.SphereGeometry(0.04, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0 }),
     );
     sparkMesh.visible = false;
@@ -364,7 +367,7 @@ export default function LoneWolfArena() {
     laserRef.current = { line: laserLine, material: laserMat, spark: sparkLight, sparkMesh, ttl: 0 };
 
     // ---- Muzzle flash ----
-    const muzzleGeo = new THREE.SphereGeometry(0.18, 12, 12);
+    const muzzleGeo = new THREE.SphereGeometry(0.07, 12, 12);
     const muzzleMat = new THREE.MeshBasicMaterial({ color: 0xffe8a0, transparent: true, opacity: 0 });
     const muzzleMesh = new THREE.Mesh(muzzleGeo, muzzleMat);
     muzzleMesh.visible = false;
@@ -718,14 +721,29 @@ export default function LoneWolfArena() {
       recoilYawRef.current += (Math.random() - 0.5) * 0.035 * recoilScale;
       shakeRef.current = 0.12;
 
-      const origin = camera.position.clone();
-      let dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
+      // The ray is built from the player's own state, never from the camera:
+      // the camera carries screen shake and is repositioned later in the frame.
+      const aimYaw = yaw + recoilYawRef.current;
+      const aimPitch = pitch + recoilRef.current;
+      const origin = new THREE.Vector3(walkPos.x, walkPos.y + EYE_HEIGHT, walkPos.z);
+      const dir = new THREE.Vector3(
+        Math.sin(aimYaw) * Math.cos(aimPitch),
+        Math.sin(aimPitch),
+        Math.cos(aimYaw) * Math.cos(aimPitch),
+      ).multiplyScalar(-1).normalize();
       applySpread(dir, behavior.spread + recoilRef.current * 0.15);
+
+      // tracers leave the gun, which sits down-right of the eye
+      const rightVec = new THREE.Vector3(Math.cos(aimYaw), 0, -Math.sin(aimYaw));
+      const muzzlePos = origin
+        .clone()
+        .add(rightVec.clone().multiplyScalar(0.3))
+        .add(new THREE.Vector3(0, -0.25, 0))
+        .add(dir.clone().multiplyScalar(0.6));
 
       const muzzle = muzzleRef.current;
       if (muzzle) {
-        muzzle.mesh.position.copy(origin).add(dir.clone().multiplyScalar(0.55));
+        muzzle.mesh.position.copy(muzzlePos);
         muzzle.light.position.copy(muzzle.mesh.position);
         muzzle.mesh.visible = true;
         muzzle.light.intensity = 18;
@@ -754,9 +772,9 @@ export default function LoneWolfArena() {
         const posAttr = laser.line.geometry.attributes["position"];
         if (!posAttr) continue;
         const positions = posAttr.array as Float32Array;
-        positions[0] = origin.x;
-        positions[1] = origin.y;
-        positions[2] = origin.z;
+        positions[0] = muzzlePos.x;
+        positions[1] = muzzlePos.y;
+        positions[2] = muzzlePos.z;
 
         let end: THREE.Vector3;
         let hitBot = false;
@@ -803,7 +821,15 @@ export default function LoneWolfArena() {
 
 
 
+    const onContextMenu = (e: MouseEvent) => e.preventDefault();
+
     const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 2) {
+        if (modeRef.current === "walk" && document.pointerLockElement === renderer.domElement) {
+          adsRef.current = true;
+        }
+        return;
+      }
       if (e.button !== 0) return;
       if (!sfxInitializedRef.current) {
         initSfx();
@@ -827,6 +853,10 @@ export default function LoneWolfArena() {
     };
 
     const onMouseUp = (e: MouseEvent) => {
+      if (e.button === 2) {
+        adsRef.current = false;
+        return;
+      }
       if (e.button !== 0) return;
       mouseHeldRef.current = false;
       // cancelling a burst mid-burst is intentional
@@ -859,6 +889,7 @@ export default function LoneWolfArena() {
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("mousedown", onMouseDown);
+    renderer.domElement.addEventListener("contextmenu", onContextMenu);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointermove", onPointerMove);
@@ -1186,6 +1217,8 @@ export default function LoneWolfArena() {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
 
+      let pendingFire = false;
+
       for (const fx of fxList) fx.update(dt);
       for (const fx of impactPool) fx.update(dt);
 
@@ -1229,24 +1262,9 @@ export default function LoneWolfArena() {
             finishReload(weaponRef.current);
           }
         }
-        // burst
-        if (burstQueueRef.current) {
-          burstQueueRef.current.nextIn -= dt;
-          if (burstQueueRef.current.nextIn <= 0) {
-            const q = burstQueueRef.current;
-            shoot(true);
-            q.shotsLeft -= 1;
-            if (q.shotsLeft <= 0) {
-              burstQueueRef.current = null;
-            } else {
-              q.nextIn = behavior.interval;
-            }
-          }
-        }
-        // auto
-        if (mouseHeldRef.current && behavior.mode === "auto" && weaponCooldownRef.current <= 0 && !isReloadingRef.current) {
-          shoot(true);
-        }
+        // firing itself happens after the camera update, further down the frame
+        pendingFire = true;
+        void behavior;
       }
 
       if (humanBody) humanBody.group.visible = introTime > 0 && modeRef.current === "walk";
@@ -1388,6 +1406,35 @@ export default function LoneWolfArena() {
             Math.cos(effectiveYaw) * Math.cos(effectivePitch),
           );
           camera.lookAt(camera.position.clone().add(dir.multiplyScalar(-1)));
+
+          // ADS: lerp the FOV toward the equipped weapon's magnification
+          const zoom = adsRef.current ? getWeaponBehavior(weaponRef.current).zoom : 1;
+          const targetFov = BASE_FOV / Math.max(1, zoom);
+          if (Math.abs(camera.fov - targetFov) > 0.05) {
+            camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 10);
+            camera.updateProjectionMatrix();
+          }
+        }
+      }
+
+      // automatic / burst fire, run only once the camera is in its final pose
+      if (pendingFire) {
+        const behavior = getWeaponBehavior(weaponRef.current);
+        if (burstQueueRef.current) {
+          burstQueueRef.current.nextIn -= dt;
+          if (burstQueueRef.current.nextIn <= 0) {
+            const q = burstQueueRef.current;
+            shoot(true);
+            q.shotsLeft -= 1;
+            if (q.shotsLeft <= 0) {
+              burstQueueRef.current = null;
+            } else {
+              q.nextIn = behavior.interval;
+            }
+          }
+        }
+        if (mouseHeldRef.current && behavior.mode === "auto" && weaponCooldownRef.current <= 0 && !isReloadingRef.current) {
+          shoot(true);
         }
       }
 
@@ -1477,8 +1524,10 @@ export default function LoneWolfArena() {
 
       const ch = crosshairRef.current;
       if (ch) {
-        const spread = 1 + Math.min(2.2, recoilRef.current * 6);
-        ch.style.transform = `translate(-50%, -50%) scale(${spread})`;
+        const b = getWeaponBehavior(weaponRef.current);
+        const size = 14 + b.spread * 900 + Math.min(0.32, recoilRef.current) * 190;
+        ch.style.width = `${size}px`;
+        ch.style.height = `${size}px`;
       }
 
       renderer.render(scene, camera);
@@ -1495,6 +1544,7 @@ export default function LoneWolfArena() {
       cancelAnimationFrame(raf);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("mousedown", onMouseDown);
+      renderer.domElement.removeEventListener("contextmenu", onContextMenu);
       window.removeEventListener("mouseup", onMouseUp);
       renderer.domElement.removeEventListener("wheel", onWheel);
       window.removeEventListener("pointerup", onPointerUp);

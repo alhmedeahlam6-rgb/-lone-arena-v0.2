@@ -1593,9 +1593,10 @@ export default function LoneWolfArena() {
     if (heavyIds.length === 0) return;
     const refund = heavyIds.reduce((sum, id) => sum + (getWeapon(id)?.price ?? 0) * 0.5, 0);
     setCredits((c) => c + Math.floor(refund));
-    setSlots((prev) => [null, null, prev[2]]);
+    setSlots((prev) => [null, null, prev[2] ?? null]);
     setActiveSlot(2);
   };
+
 
   const selectSlot = (i: number) => {
 

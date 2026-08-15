@@ -1732,9 +1732,11 @@ export default function LoneWolfArena() {
               totalSeconds={COUNTDOWN_SECONDS}
               onBuy={buyWeapon}
               onSelectSlot={selectSlot}
+              onSellAll={sellAllWeapons}
               onClose={() => setShopOpen(false)}
             />
           )}
+
           {!shopOpen && (
             <WeaponSlots slots={slots} activeSlot={activeSlot} onSelect={selectSlot} />
           )}

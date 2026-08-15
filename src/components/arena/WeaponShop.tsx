@@ -59,12 +59,20 @@ export default function WeaponShop({
               $ {credits}
             </span>
             <button
+              onClick={onSellAll}
+              disabled={heavyCount === 0}
+              className="rounded-full border border-border/60 bg-[var(--hud-panel-dim)] px-4 py-2 text-xs font-bold uppercase tracking-widest text-foreground transition hover:border-[var(--hud-accent)]/60 disabled:opacity-30 disabled:hover:border-border/60"
+            >
+              Sell all
+            </button>
+            <button
               onClick={onClose}
               className="rounded-full bg-[var(--hud-accent)] px-6 py-2 text-xs font-bold uppercase tracking-widest text-[var(--hud-accent-foreground)] transition hover:brightness-110"
             >
               Ready
             </button>
           </div>
+
         </div>
 
         {/* loadout strip */}

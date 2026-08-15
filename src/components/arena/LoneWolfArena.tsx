@@ -1788,6 +1788,25 @@ export default function LoneWolfArena() {
           )}
           <Minimap radarRef={radarRef} mapRef={mapGridRef} imageRef={mapImageRef} />
 
+          {/* Free Fire style health bar */}
+          <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 w-64 -translate-x-1/2 sm:w-80">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">HP</span>
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-black/60 ring-1 ring-white/25">
+                <div
+                  className="h-full rounded-full bg-white transition-all duration-150"
+                  style={{ width: `${Math.max(0, Math.min(100, (playerHp / MAX_HP) * 100))}%` }}
+                />
+              </div>
+              <span className="w-16 text-right text-xs font-bold tabular-nums text-white">
+                {playerHp}/{MAX_HP}
+              </span>
+            </div>
+            <p className="mt-1 text-center text-[10px] uppercase tracking-widest text-white/50">
+              {playerStatsHud.kills} K / {playerStatsHud.deaths} D
+            </p>
+          </div>
+
           <div
             ref={crosshairRef}
             className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-foreground/80 shadow-[0_0_6px_rgba(0,0,0,0.7)]"
@@ -1909,11 +1928,23 @@ export default function LoneWolfArena() {
               <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">
                 {match.phase === "intermission" ? "Round over" : "Match over"}
               </p>
-              <p className="text-4xl font-bold text-foreground">
-                {match.matchWinner
-                  ? `${match.matchWinner === "blue" ? "Blue" : "Red"} team wins`
-                  : `${match.roundWinner === "blue" ? "Blue" : "Red"} team wins the round`}
-              </p>
+              {(() => {
+                const winner = match.matchWinner ?? match.roundWinner;
+                const won = winner === "blue";
+                return won ? (
+                  <div className="rounded-md border-2 border-[#ffd76a] bg-gradient-to-b from-[#ffe9a8] to-[#e2a712] px-10 py-3 shadow-[0_0_40px_-8px_rgba(255,200,80,0.9)]">
+                    <p className="text-4xl font-black uppercase tracking-[0.25em] text-[#4a2c00] sm:text-5xl">
+                      Booyah
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border-2 border-white/25 bg-gradient-to-b from-[#5b6068] to-[#2b2f35] px-10 py-3 shadow-[0_0_40px_-12px_rgba(0,0,0,0.9)]">
+                    <p className="text-4xl font-black uppercase tracking-[0.25em] text-white/80 sm:text-5xl">
+                      Defeat
+                    </p>
+                  </div>
+                );
+              })()}
               <p className="text-2xl font-semibold tabular-nums text-foreground">
                 {match.blue} – {match.red}
               </p>
@@ -1980,78 +2011,26 @@ export default function LoneWolfArena() {
 
       {/* scoreboard */}
       {hud.length > 0 && (
-        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-lg border border-border/60 bg-card/70 px-4 py-2 text-center backdrop-blur sm:top-6">
-          <div className="flex items-center gap-3 text-lg font-bold tabular-nums">
-            <span style={{ color: "#3f8fff" }}>{score.blue}</span>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Round {match.round}</span>
-              <div className="mt-1 flex w-32 overflow-hidden rounded-full bg-muted sm:w-40">
-                <div
-                  className="h-1.5 transition-all"
-                  style={{ width: `${Math.max(0, Math.min(100, (hud.filter((f) => f.team === "blue").reduce((s, f) => s + f.hp, 0) / (MAX_HP * 2)) * 100))}%`, backgroundColor: "#3f8fff" }}
-                />
-                <div
-                  className="h-1.5 transition-all"
-                  style={{ width: `${Math.max(0, Math.min(100, (hud.filter((f) => f.team === "red").reduce((s, f) => s + f.hp, 0) / (MAX_HP * 2)) * 100))}%`, backgroundColor: "#ff3b1f" }}
-                />
-              </div>
+        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 sm:top-6">
+          <div className="flex items-stretch overflow-hidden rounded-lg shadow-[0_0_18px_-6px_rgba(0,0,0,0.9)]">
+            <div className="flex min-w-14 items-center justify-center bg-[#1b62d6] px-4 py-1.5 text-xl font-extrabold tabular-nums text-white">
+              {score.blue}
             </div>
-            <span style={{ color: "#ff3b1f" }}>{score.red}</span>
-          </div>
-          <div className="mt-1 flex gap-3 text-[10px] uppercase tracking-widest text-muted-foreground">
-            {hud.map((f) => (
-              <span key={f.id} className={f.alive ? "" : "opacity-40 line-through"}>
-                {f.isHuman ? "YOU" : f.id} {f.hp}
+            <div className="flex flex-col items-center justify-center bg-black/70 px-4 py-1 text-center backdrop-blur">
+              <span className="text-[9px] uppercase tracking-[0.3em] text-white/70">Round {match.round}</span>
+              <span className="text-[9px] uppercase tracking-widest text-white/50">
+                {hud.filter((f) => f.team === "blue" && f.alive).length} v {hud.filter((f) => f.team === "red" && f.alive).length}
               </span>
-            ))}
+            </div>
+            <div className="flex min-w-14 items-center justify-center bg-[#d62828] px-4 py-1.5 text-xl font-extrabold tabular-nums text-white">
+              {score.red}
+            </div>
           </div>
         </div>
       )}
 
-
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 p-4 sm:p-6">
-        <div className="rounded-lg border border-border/60 bg-[var(--hud-panel-dim)] px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground backdrop-blur">
-          {mode === "walk" ? (
-            <>WASD · space jump · click shoot · R reload · shift sprint · 1/2/3 weapons · esc exit</>
-          ) : (
-            <>Drag to rotate · scroll to zoom</>
-          )}
-
-          {mode === "walk" && (
-            <div className="mt-2 w-56 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-5 text-[9px] text-[var(--hud-accent)]">K/D</span>
-                <div className="h-1.5 flex-1 skew-x-[-20deg] overflow-hidden bg-muted">
-                  <div
-                    className="h-full transition-all"
-                    style={{
-                      width: `${Math.min(100, (playerStatsHud.kills / KILLS_TO_WIN_ROUND) * 100)}%`,
-                      background: "var(--gradient-hud)",
-                    }}
-                  />
-                </div>
-                <span className="w-14 text-right text-[9px] tabular-nums normal-case tracking-normal text-foreground">
-                  {playerStatsHud.kills} / {playerStatsHud.deaths}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 text-[9px] text-[var(--hud-hp)]">HP</span>
-                <div className="h-2.5 flex-1 skew-x-[-20deg] overflow-hidden bg-muted">
-                  <div
-                    className="h-full transition-all"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, (playerHp / MAX_HP) * 100))}%`,
-                      background: "var(--gradient-hud)",
-                    }}
-                  />
-                </div>
-                <span className="w-14 text-right text-[9px] tabular-nums normal-case tracking-normal text-foreground">
-                  {playerHp}/{MAX_HP}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
+        <div />
 
         <div className="pointer-events-auto flex flex-col items-end gap-2">
           <div className="flex gap-2">

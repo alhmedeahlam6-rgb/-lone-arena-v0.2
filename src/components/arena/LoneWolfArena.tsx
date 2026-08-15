@@ -783,8 +783,9 @@ export default function LoneWolfArena() {
         laser.ttl = 0.12;
 
         spawnImpact(end, hitBot ? new THREE.Color(human.team === "blue" ? 0x3f8fff : 0xff3b1f) : undefined);
-        if (hitBot) pushKillFeed(human, fighterByMesh(botHits[0]!.object)!, weaponName);
+        // Kill feed is already pushed by damage()/kill(); don't duplicate it here.
       }
+
 
       // decrement ammo
       if (currentAmmo) {
